@@ -63,6 +63,14 @@ main=$(github 'branches/main' | python3 -c 'import json,sys; print(json.load(sys
 published=$(github "actions/workflows/publish-image.yml/runs?branch=main&head_sha=$revision&status=success&per_page=20" |
   python3 -c 'import json,sys; print(any(run["head_sha"] == sys.argv[1] and run["event"] in ("push", "workflow_dispatch") and run["conclusion"] == "success" for run in json.load(sys.stdin)["workflow_runs"]))' "$revision")
 [[ "$published" == True ]] || { echo 'A publicação desse SHA em GHCR ainda não foi aprovada pelo CI de imagens.' >&2; exit 1; }
+if [[ "$mode" == --apply ]]; then
+  approval_run=$(github "actions/workflows/deploy-brando.yml/runs?branch=main&head_sha=$revision&event=workflow_dispatch&status=success&per_page=20" |
+    python3 -c 'import json,sys; print(next((run["id"] for run in json.load(sys.stdin)["workflow_runs"] if run["head_sha"] == sys.argv[1] and run["event"] == "workflow_dispatch" and run["conclusion"] == "success"), ""))' "$revision")
+  [[ "$approval_run" =~ ^[1-9][0-9]*$ ]] || { echo 'A revisão ainda não tem aprovação de produção no GitHub.' >&2; exit 1; }
+  approved=$(github "actions/runs/$approval_run/jobs?filter=latest&per_page=20" |
+    python3 -c 'import json,sys; print(any(job["name"] == "Registrar aprovação de produção" and job["conclusion"] == "success" for job in json.load(sys.stdin)["jobs"]))')
+  [[ "$approved" == True ]] || { echo 'O job de aprovação de produção precisa concluir com sucesso.' >&2; exit 1; }
+fi
 running=$(docker inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "${services[0]}")
 [[ "$running" =~ ^[a-f0-9]{40}$ ]]
 if [[ "$running" == "$revision" ]]; then

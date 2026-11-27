@@ -24,20 +24,31 @@ Os digests atuais permitem preparar o retorno do app, worker e scheduler sem alt
 
 1. No GitHub, desative o workflow legado `sync-deskcomm-upstream.yml` em Actions. Ele foi encontrado ativo e pode mesclar releases diretamente em `main`. Verifique a ausência de uma execução em andamento. Em `dev`, a proposta retira o workflow legado.
 2. Configure a proteção de `main` para exigir pull request e checks. Restrinja o ambiente GitHub `production` a `main` e configure aprovação obrigatória pelo responsável. Preserve `upstream` como espelho. Garanta que nenhum webhook, agendamento ou auto-deploy aplicado ao CRM publique sem essa aprovação.
-3. No ambiente `production`, configure as variáveis `PROD_SSH_HOST` e `PROD_SSH_USER` e os secrets `PROD_SSH_KEY` e `PROD_SSH_KNOWN_HOSTS`. Use uma credencial de implantação dedicada, confirme a chave de host fora do workflow e restrinja o acesso aos operadores de produção. O usuário executa o script com acesso ao Docker deste serviço. Provisione o token do EasyPanel para esse usuário em `~/.local/state/deskcomm-deploy/panel.token`, com permissões `0700` no diretório e `0600` no arquivo. O token só é enviado à API local do painel.
+3. Use acesso SSH de um operador autorizado para executar o script na VPS, com a chave de host verificada. Provisione o token do EasyPanel para esse usuário em `~/.local/state/deskcomm-deploy/panel.token`, com permissões `0700` no diretório e `0600` no arquivo. O token só é enviado à API local do painel. As credenciais SSH ficam com o operador e o GitHub recebe apenas o registro de aprovação e os artefatos de código.
 4. Valide em ambiente isolado com Compose equivalente, token de teste, dados sintéticos e as mesmas versões de Docker e PostgreSQL. Confirme que o serviço usa fonte inline em JSON e que o token pode ler, gravar a fonte e solicitar implantação do Compose. Teste backup, restauração, rollback e o fluxo de aprovação antes da primeira ativação.
 
-O contrato aproveita o serviço existente do EasyPanel. GitHub Actions publica as imagens de `main` em GHCR. O workflow manual `Implantar Brando CRM` usa o SHA aprovado para validar e fixar os três digests no mesmo Compose, preservar a origem e chamar o EasyPanel. As variáveis públicas em tempo de execução e os segredos de produção continuam no painel e no host.
+O contrato aproveita o serviço existente do EasyPanel. GitHub Actions publica as imagens de `main` em GHCR, e o workflow manual `Autorizar implantação do Brando CRM` registra a aprovação do SHA. O script executado na VPS consulta essa aprovação, valida e fixa os três digests no mesmo Compose e chama o EasyPanel. As configurações de produção ficam no painel e no host.
 
 ## Antes de cada publicação
 
 1. Confirme PR e checks aprovados, SHA no topo de `main`, sucesso de `publish-image.yml` para esse mesmo SHA e janela de operação quando houver mudança de schema. Revise as notas e confirme a compatibilidade da versão anterior com o novo schema, se aplicável.
 2. Registre o SHA implantado, os três digests, a fonte Compose e as configurações do EasyPanel. Guarde-os criptografados fora do Git. Faça o backup completo descrito abaixo e verifique uma restauração isolada. Valide e registre o candidato no staging.
-3. Obtenha aprovação explícita para o SHA. Dispare `Implantar Brando CRM` em `main` com o SHA completo e aprove o job `production`. O script rejeita um SHA diferente do topo de `main`, exige publicação bem-sucedida e verifica as três revisões OCI antes de trocar as imagens.
+3. Obtenha aprovação explícita para o SHA. Dispare `Autorizar implantação do Brando CRM` em `main` com o SHA completo e aprove o job `production`. Após o sucesso do job, execute o script da revisão aprovada na VPS. Ele exige o SHA no topo de `main`, o registro de aprovação, a publicação bem-sucedida e a correspondência das três revisões OCI.
 4. O script guarda a fonte anterior e um dump do PostgreSQL. Com mudança no `baseline.sql`, ele para app, worker e scheduler para aplicar o baseline em transação. Coordene a suspensão de outros escritores e integrações durante essa janela. Durante o backup e a validação do candidato, confira o espaço para as imagens e os arquivos temporários.
 5. Após o deploy, confira os três containers saudáveis no mesmo SHA, a versão em `/api/v1/health`, login e leitura de contatos, conversa e mídia. Verifique scheduler, worker e integrações com uma conta de teste autorizada. Registre horário, SHA, digests e resultado.
 
 O modo `--check SHA_COMPLETO_DE_MAIN` valida o candidato sem gravar a fonte do EasyPanel ou aplicar schema. Ele baixa imagens e guarda uma cópia do Compose no diretório privado. Execute-o primeiro em staging com serviços e estado isolados.
+
+Para solicitar o deploy aprovado, rode em Bash na sua estação com SSH autorizado. Substitua o alias e o SHA pelos valores da publicação.
+
+```bash
+set -euo pipefail
+revision=SHA_COMPLETO_DE_MAIN_APROVADO
+[[ "$revision" =~ ^[a-f0-9]{40}$ ]]
+git fetch --no-tags origin main
+git show "${revision}:ops/easypanel/deploy-published-deskcomm.sh" |
+  ssh -o StrictHostKeyChecking=yes ALIAS_DA_VPS "bash -s -- --apply $revision"
+```
 
 ## Backup completo
 
