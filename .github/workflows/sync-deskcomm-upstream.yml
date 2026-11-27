@@ -21,6 +21,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.DESKCOMM_SYNC_TOKEN || github.token }}
       UPSTREAM: melgarafael/DeskcommCRM
+      PUSH_STARTS_BUILD: ${{ secrets.DESKCOMM_SYNC_TOKEN != '' }}
     steps:
       - name: Incorporar a última release sem reescrever a main
         shell: bash
@@ -38,8 +39,16 @@ jobs:
           git switch --quiet -c main FETCH_HEAD
           git fetch --quiet --no-tags "https://github.com/$UPSTREAM.git" "refs/tags/$release"
           upstream_commit=$(git rev-parse 'FETCH_HEAD^{commit}')
+          publish_if_missing() {
+            commit=$(git rev-parse HEAD)
+            runs=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/publish-image.yml/runs?head_sha=$commit&branch=main&per_page=1" --jq '.total_count')
+            if [ "$runs" = 0 ]; then
+              gh workflow run publish-image.yml --repo "$GITHUB_REPOSITORY" --ref main
+            fi
+          }
           if git merge-base --is-ancestor "$upstream_commit" HEAD; then
             printf 'O fork já contém %s.\n' "$release"
+            publish_if_missing
             exit 0
           fi
 
@@ -51,4 +60,4 @@ jobs:
             exit 1
           fi
           git push origin HEAD:refs/heads/main
-          gh workflow run publish-image.yml --repo "$GITHUB_REPOSITORY" --ref main
+          if [ "$PUSH_STARTS_BUILD" != true ]; then publish_if_missing; fi
