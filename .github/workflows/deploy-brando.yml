@@ -1,0 +1,33 @@
+name: Autorizar implantação do Brando CRM
+
+on:
+  workflow_dispatch:
+    inputs:
+      revision:
+        description: SHA completo de main aprovado para produção
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brando-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Registrar aprovação de produção
+    if: github.repository == 'marlonbrandodeoliveira/DeskcommCRM' && github.ref == 'refs/heads/main' && inputs.revision == github.sha
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 45
+    steps:
+      - name: Registrar a revisão aprovada
+        env:
+          REVISION: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$REVISION" =~ ^[a-f0-9]{40}$ ]]
+          printf 'Revisão autorizada para o EasyPanel: `%s`\n' "$REVISION" >> "$GITHUB_STEP_SUMMARY"

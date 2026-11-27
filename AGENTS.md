@@ -1,5 +1,13 @@
 # Repository Guidelines
 
+## Regras obrigatórias do Brando CRM
+
+- Use `dev` para desenvolvimento, integração e testes. Preserve `main` como branch estável e use `upstream` como espelho puro do DeskcommCRM oficial. Abra pull request de `dev` para `main` após a validação.
+- Antes de uma mudança em produção, confirme o SHA, os testes, o backup e a recuperação conforme [DEPLOYMENT.md](DEPLOYMENT.md). Só faça o merge de liberação, deploy, migração, restauração, reinício ou mudança de EasyPanel, DNS e Cloudflare com autorização explícita para a operação.
+- Mantenha dados e credenciais de produção no ambiente de produção. Use banco, volumes, contas e eventos sintéticos no desenvolvimento. Revise o diff antes de publicar. Exclua segredos, dados pessoais, dumps e configurações reais de logs, commits, artefatos e comentários.
+- Prefira configurações nativas e pontos de extensão. Mantenha a lógica própria agrupada por funcionalidade, com as menores alterações possíveis nos pontos de integração. Preserve RLS, RBAC, auditoria e o isolamento entre organizações.
+- Preserve o arquivo [LICENSE](LICENSE) e os avisos de autoria. Registre cada mudança própria e sua validação em [CUSTOMIZATIONS.md](CUSTOMIZATIONS.md). Use [UPDATE_GUIDE.md](UPDATE_GUIDE.md) para incorporar releases oficiais.
+
 > Contrato portável para **qualquer** agente de código (Codex, Cursor, OpenCode, Antigravity, Copilot).
 > Este arquivo é o núcleo. A **doutrina completa e não-negociável vive em [`CLAUDE.md`](CLAUDE.md)** —
 > leia-o antes de tocar em código. Seções longas dele (testes, migrations, auditoria, WAHA, QA visual)
