@@ -46,6 +46,20 @@ O modo `--check SHA_COMPLETO_DE_MAIN` valida o candidato sem gravar a fonte do E
 - Exporte sob controle de acesso a fonte e as configurações do EasyPanel, chaves de criptografia da aplicação, Auth e integrações, inventário de domínios e runtime, além dos digests anteriores. A restauração das configurações precisa preservar a capacidade de decifrar os dados existentes.
 - Gere checksums e retenha uma cópia criptografada fora da VPS com acesso restrito. Valide legibilidade e checksums, use `pg_restore --list` e restaure em outra instância com rede e integrações isoladas. Faça uma verificação de contagens, login, amostras de anexos e isolamento de organizações. Registre data, tamanho, cobertura e resultado do ensaio. Agende backups conforme a frequência de perda de dados aceitável para a operação.
 
+Para preparar os artefatos do banco durante uma janela aprovada, rode em Bash na VPS com acesso ao Docker. Trate o dump e os papéis como segredos. Complete o backup com os volumes e configurações acima.
+
+```bash
+set -euo pipefail
+umask 077
+backup_dir=$(mktemp -d "$HOME/deskcomm-backup.XXXXXXXX")
+db=deskcommcrm_crm-supabase-db-1
+docker exec "$db" pg_dump -U supabase_admin -d postgres -Fc > "$backup_dir/db.dump"
+docker exec "$db" pg_dumpall -U postgres --roles-only > "$backup_dir/roles.sql"
+docker exec -i "$db" pg_restore --list < "$backup_dir/db.dump" > "$backup_dir/db.list"
+(cd "$backup_dir" && sha256sum db.dump roles.sql db.list > SHA256SUMS)
+printf '%s\n' "$backup_dir"
+```
+
 ## Rollback e recuperação
 
 1. Diante de falha, pause a publicação e confirme a revisão e o estado do banco. Guarde o diretório privado da tentativa, com a fonte anterior e o dump. A presença de `pending` bloqueia uma nova tentativa até o operador diagnosticar e reconciliar a configuração.
