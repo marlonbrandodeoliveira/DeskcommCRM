@@ -1,3 +1,36 @@
+# Brando CRM
+
+Brando CRM é a versão personalizada do [DeskcommCRM](https://github.com/melgarafael/DeskcommCRM) para a operação Brando. O projeto original é de Rafael Melgaço, sob a [licença MIT](LICENSE).
+
+| Branch | Uso |
+| --- | --- |
+| `upstream` | Espelho do código oficial |
+| `main` | Versão estável, fonte das imagens de produção |
+| `dev` | Desenvolvimento e validação de mudanças e releases oficiais |
+
+### Desenvolvimento local
+
+Requisitos do projeto: Node.js 22, pnpm 9.15.9, Bash e Docker com Compose. No Windows, use Ubuntu no WSL 2 com Docker disponível dentro da distribuição. Use o checkout dentro do sistema de arquivos Linux e instale ali as dependências para Linux.
+
+```bash
+git clone -b dev https://github.com/marlonbrandodeoliveira/DeskcommCRM.git brando-crm
+cd brando-crm
+git remote add upstream https://github.com/melgarafael/DeskcommCRM.git
+corepack pnpm install --frozen-lockfile
+bash ubuntu-local-installer.sh
+```
+
+O instalador local gera `.env.local`, aplica o schema em um Supabase local e sobe o app, worker, scheduler, Redis e WAHA. Use a URL e o login de teste informados ao final. Consulte `/api/v1/health`, faça login e crie um contato fictício. Use `corepack pnpm local:up` para retomar a stack e `corepack pnpm local:down` para pará-la. Para editar o app com recarga automática, siga o [guia de setup](docs/SETUP.md) e use `corepack pnpm dev` em uma porta livre com as URLs locais correspondentes.
+
+Mantenha as configurações de produção no EasyPanel e no servidor. Use arquivos `.env*` locais ignorados pelo Git e dados sintéticos. Arme integrações externas apenas com contas de teste. O fork é público.
+
+- [Regras dos agentes](AGENTS.md)
+- [Registro das personalizações](CUSTOMIZATIONS.md)
+- [Integração de versões oficiais](UPDATE_GUIDE.md)
+- [Implantação, backup e recuperação](DEPLOYMENT.md)
+
+---
+
 <div align="center">
 
 🇧🇷 Português · [🇺🇸 English](README.en.md) · [🇪🇸 Español](README.es.md)

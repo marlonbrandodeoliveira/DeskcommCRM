@@ -1,0 +1,52 @@
+name: Implantar Brando CRM
+
+on:
+  workflow_dispatch:
+    inputs:
+      revision:
+        description: SHA completo de main aprovado para produção
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brando-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.repository == 'marlonbrandodeoliveira/DeskcommCRM' && github.ref == 'refs/heads/main' && inputs.revision == github.sha
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Implantar a revisão aprovada no EasyPanel
+        env:
+          REVISION: ${{ github.sha }}
+          SSH_HOST: ${{ vars.PROD_SSH_HOST }}
+          SSH_USER: ${{ vars.PROD_SSH_USER }}
+          SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          [[ "$REVISION" =~ ^[a-f0-9]{40}$ ]]
+          [[ "$SSH_HOST" =~ ^[[:alnum:]][[:alnum:].-]*$ ]]
+          [[ "$SSH_USER" =~ ^[a-z_][a-z0-9_-]*$ ]]
+          [[ -n "$SSH_KEY" && -n "$SSH_KNOWN_HOSTS" ]]
+          identity=$(mktemp)
+          known_hosts=$(mktemp)
+          trap 'rm -f -- "$identity" "$known_hosts"' EXIT
+          printf '%s\n' "$SSH_KEY" > "$identity"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$known_hosts"
+          ssh -i "$identity" -o BatchMode=yes -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$known_hosts" \
+            -o ConnectTimeout=15 "$SSH_USER@$SSH_HOST" \
+            "bash -s -- --apply $REVISION" < ops/easypanel/deploy-published-deskcomm.sh
