@@ -78,7 +78,19 @@ token=$(<"$state/panel.token")
 
 folder=$(mktemp -d "$state/upgrade.XXXXXXXX")
 cd "$folder"
-panel "$source_url" | python3 -c 'import json,sys; s=json.load(sys.stdin)["source"]; assert s["type"]=="inline"; print(s["content"])' > original.json
+panel "$source_url" | python3 -c '
+import json
+import sys
+
+source = json.load(sys.stdin)["source"]
+if source["type"] != "inline":
+    sys.exit("O Compose precisa usar a fonte inline.")
+content = source["content"]
+config = json.loads(content) if isinstance(content, str) else content
+if not isinstance(config, dict) or not isinstance(config.get("services"), dict):
+    sys.exit("A fonte inline não contém um Compose JSON válido.")
+print(json.dumps(config))
+' > original.json
 curl -fsS --max-time 60 "https://raw.githubusercontent.com/$repo/$revision/supabase/baseline.sql" -o baseline.sql
 curl -fsS --max-time 60 "https://raw.githubusercontent.com/$repo/$running/supabase/baseline.sql" -o baseline-anterior.sql
 schema_changed=false
@@ -149,8 +161,7 @@ docker exec "$db" pg_dump -U supabase_admin -d postgres -Fc > db.tmp
 docker exec -i "$db" pg_restore --file=/dev/null < db.tmp
 mv db.tmp db.dump
 
-# Preserve the old source before switching images. A marker also blocks retries
-# if the deployment is interrupted after a successful schema change.
+# Bloqueia novas tentativas enquanto o operador verifica uma implantação interrompida.
 if [[ "$schema_changed" != true ]]; then phase=saving; fi
 save_source candidate.json
 printf '%s\n' "$revision" > "$state/pending.tmp"

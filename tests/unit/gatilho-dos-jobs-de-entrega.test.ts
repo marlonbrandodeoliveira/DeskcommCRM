@@ -65,6 +65,11 @@ const DIR = join(process.cwd(), ".github/workflows");
  */
 const GATILHO_ESPERADO: Record<string, { condicao: string | null; efeito: string }> = {
   // --- a cadeia que leva o conserto até a VPS ---------------------------------
+  "deploy-brando.yml::deploy": {
+    condicao:
+      "github.repository == 'marlonbrandodeoliveira/DeskcommCRM' && github.ref == 'refs/heads/main' && inputs.revision == github.sha",
+    efeito: "A implantação do Brando CRM exige o SHA de main no fork e aprovação do ambiente production.",
+  },
   "release.yml::abrir-pr-de-release": {
     condicao: "github.event_name == 'workflow_dispatch'",
     efeito:
