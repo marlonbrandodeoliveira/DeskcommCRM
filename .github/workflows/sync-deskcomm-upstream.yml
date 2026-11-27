@@ -1,0 +1,54 @@
+name: Incorporar versões oficiais do Deskcomm
+
+on:
+  schedule:
+    - cron: '41 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: deskcomm-upstream-sync
+  cancel-in-progress: false
+
+jobs:
+  synchronize:
+    if: github.repository == 'marlonbrandodeoliveira/DeskcommCRM' && github.ref_name == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ secrets.DESKCOMM_SYNC_TOKEN || github.token }}
+      UPSTREAM: melgarafael/DeskcommCRM
+    steps:
+      - name: Incorporar a última release sem reescrever a main
+        shell: bash
+        run: |
+          set -euo pipefail
+          release=$(gh api "repos/$UPSTREAM/releases/latest" --jq '.tag_name')
+          [[ "$release" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+
+          worktree=$(mktemp -d)
+          cd "$worktree"
+          git init --quiet
+          gh auth setup-git --hostname github.com
+          git remote add origin "https://github.com/$GITHUB_REPOSITORY.git"
+          git fetch --quiet --no-tags origin main
+          git switch --quiet -c main FETCH_HEAD
+          git fetch --quiet --no-tags "https://github.com/$UPSTREAM.git" "refs/tags/$release"
+          upstream_commit=$(git rev-parse 'FETCH_HEAD^{commit}')
+          if git merge-base --is-ancestor "$upstream_commit" HEAD; then
+            printf 'O fork já contém %s.\n' "$release"
+            exit 0
+          fi
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if ! git merge --no-ff -m "Incorpora Deskcomm oficial $release" "$upstream_commit"; then
+            git merge --abort
+            echo '::error::A release oficial conflita com mudanças do fork. A main continua na revisão anterior.'
+            exit 1
+          fi
+          git push origin HEAD:refs/heads/main
+          gh workflow run publish-image.yml --repo "$GITHUB_REPOSITORY" --ref main
